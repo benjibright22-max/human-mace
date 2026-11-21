@@ -1,0 +1,17 @@
+name: HumanMace
+version: 1.0.0
+main: com.humanmace.HumanMace
+api-version: '1.21'
+description: Become a human mace.
+commands:
+  enchants:
+    description: Shows the enchants applied to you as a human mace
+    usage: /enchants
+  humanmace:
+    description: Admin command - give the Human Mace Token or remove the effect
+    usage: /humanmace <give|remove> [player]
+    permission: humanmace.admin
+permissions:
+  humanmace.admin:
+    description: Use /humanmace
+    default: op
