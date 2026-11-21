@@ -1,5 +1,6 @@
 package com.humanmace;
 
+import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -273,6 +274,9 @@ public final class HumanMace extends JavaPlugin implements Listener, TabExecutor
         }
         if (!(e.getEntity() instanceof LivingEntity victim)) return;
 
+        // hitting a raised shield doesn't mace (an axe disables the shield first, see onPreAttack)
+        if (shieldBlocks(victim, p)) return;
+
         double damage = e.getDamage();
 
         // Sharpness: flat +2.5
@@ -282,7 +286,7 @@ public final class HumanMace extends JavaPlugin implements Listener, TabExecutor
         float fall = p.getFallDistance();
         boolean smash = fall > 1.5f && !p.isGliding();
         if (smash) {
-            damage += smashBonus(fall) + 0.5 * level(p, HE.DENSITY) * fall;
+            damage += 5.0 + smashBonus(fall) + 0.5 * level(p, HE.DENSITY) * fall;
         }
 
         // Breach: works on every hit, falling or not
@@ -301,6 +305,34 @@ public final class HumanMace extends JavaPlugin implements Listener, TabExecutor
             final int wind = level(p, HE.WIND_BURST);
             Bukkit.getScheduler().runTask(this, () -> postSmash(p, victim, targetLoc, ground, fall, wind));
         }
+    }
+
+    /** An axe in a human mace's hand disables the target's shield before the hit lands, so it maces them normally. */
+    @EventHandler(ignoreCancelled = true)
+    public void onPreAttack(PrePlayerAttackEntityEvent e) {
+        Player p = e.getPlayer();
+        if (!isHumanMace(p) || !holdingAxe(p)) return;
+        if (!(e.getAttacked() instanceof Player victim)) return;
+        if (!shieldBlocks(victim, p)) return;
+
+        victim.clearActiveItem();
+        victim.setCooldown(Material.SHIELD, 100);
+        victim.getWorld().playSound(victim.getLocation(), "minecraft:item.shield.break", 1.0f, 1.0f);
+    }
+
+    private static boolean holdingAxe(Player p) {
+        return p.getInventory().getItemInMainHand().getType().name().endsWith("_AXE");
+    }
+
+    /** True if the victim is blocking with a shield and the attacker is in front of them (vanilla rule). */
+    private static boolean shieldBlocks(LivingEntity victim, Player attacker) {
+        if (!victim.isBlocking()) return false;
+        Vector look = victim.getLocation().getDirection();
+        Vector toAttacker = attacker.getLocation().toVector().subtract(victim.getLocation().toVector());
+        toAttacker.setY(0);
+        if (toAttacker.lengthSquared() < 1.0E-6) return false;
+        toAttacker.normalize();
+        return toAttacker.getX() * look.getX() + toAttacker.getZ() * look.getZ() > 0;
     }
 
     @EventHandler(ignoreCancelled = true)
